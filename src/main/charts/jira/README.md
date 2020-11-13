@@ -4,7 +4,7 @@
 
 A chart for installing Jira DC on Kubernetes
 
-## Values
+## Values test
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
