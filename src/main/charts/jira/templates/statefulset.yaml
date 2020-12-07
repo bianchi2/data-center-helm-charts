@@ -19,9 +19,7 @@ spec:
       labels:
         {{- include "jira.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.serviceAccountName }}
-      serviceAccountName: {{ .Values.serviceAccountName }}
-      {{- end }}
+      serviceAccountName: {{ include "jira.serviceAccountName" . }}
       terminationGracePeriodSeconds: 1
       securityContext:
         # This is intended to ensure that the shared-home volume is group-writeable by the GID used by the Jira container.
@@ -40,22 +38,8 @@ spec:
               value: https
             - name: ATL_TOMCAT_SECURE
               value: "true"
-            - name: ATL_JDBC_URL
-              value: {{ .Values.database.url | quote }}
-            - name: ATL_JDBC_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.credentials.secretName }}
-                  key: {{ .Values.database.credentials.usernameSecretKey }}
-            - name: ATL_JDBC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.credentials.secretName }}
-                  key: {{ .Values.database.credentials.passwordSecretKey }}
-            - name: ATL_DB_DRIVER
-              value: {{ .Values.database.driver | quote }}
-            - name: ATL_DB_TYPE
-              value: {{ .Values.database.type | quote }}
+            {{- include "jira.databaseEnvVars" . | nindent 12 }}
+            {{- include "jira.clusteringEnvVars" . | nindent 12 }}
             - name: JIRA_SHARED_HOME
               value: {{ .Values.volumes.sharedHome.mountPath | quote }}
             - name: JVM_SUPPORT_RECOMMENDED_ARGS
@@ -63,16 +47,6 @@ spec:
                 configMapKeyRef:
                   key: additional_jvm_args
                   name: {{ include "jira.fullname" . }}-jvm-config
-            - name: CLUSTERED
-              value: "true"
-            - name: JIRA_NODE_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: EHCACHE_LISTENER_HOSTNAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
             - name: JVM_MINIMUM_MEMORY
               valueFrom:
                 configMapKeyRef:
@@ -135,21 +109,5 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        - name: shared-home
-          persistentVolumeClaim:
-            claimName: {{ .Values.volumes.sharedHome.volumeClaimName }}
-        {{- with .Values.volumes.additional }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-  volumeClaimTemplates:
-    - metadata:
-        name: local-home
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        {{- if .Values.volumes.localHome.storageClassName }}
-        storageClassName: {{ .Values.volumes.localHome.storageClassName | quote }}
-        {{- end }}
-        {{- with .Values.volumes.localHome.resources }}
-        resources:
-        {{- toYaml . | nindent 10 }}
-        {{- end }}
+        {{ include "jira.volumes" . | nindent 8 }}
+  {{ include "jira.volumeClaimTemplates" . | nindent 2 }}

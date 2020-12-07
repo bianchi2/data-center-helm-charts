@@ -35,6 +35,50 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+The name of the service account to be used.
+If the name is defined in the chart values, then use that,
+else if we're creating a new service account then use the name of the Helm release,
+else just use the "default" service account.
+*/}}
+{{- define "bitbucket.serviceAccountName" -}}
+{{- if .Values.serviceAccount.name -}}
+{{- .Values.serviceAccount.name -}}
+{{- else -}}
+{{- if .Values.serviceAccount.create -}}
+{{- include "bitbucket.fullname" . -}}
+{{- else -}}
+default
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+The name of the ClusterRole that will be created.
+If the name is defined in the chart values, then use that,
+else use the name of the Helm release.
+*/}}
+{{- define "bitbucket.clusterRoleName" -}}
+{{- if .Values.serviceAccount.clusterRole.name }}
+{{- .Values.serviceAccount.clusterRole.name }}
+{{- else }}
+{{- include "bitbucket.fullname" . -}}
+{{- end }}
+{{- end }}
+
+{{/*
+The name of the ClusterRoleBinding that will be created.
+If the name is defined in the chart values, then use that,
+else use the name of the ClusterRole.
+*/}}
+{{- define "bitbucket.clusterRoleBindingName" -}}
+{{- if .Values.serviceAccount.clusterRoleBinding.name }}
+{{- .Values.serviceAccount.clusterRoleBinding.name }}
+{{- else }}
+{{- include "bitbucket.clusterRoleName" . -}}
+{{- end }}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "bitbucket.labels" -}}
@@ -112,3 +156,120 @@ For each additional plugin declared, generate a volume mount that injects that l
   {{- end }}
 {{- end }}
 {{- end }}
+
+{{- define "bitbucket.volumes" -}}
+{{ if not .Values.volumes.localHome.persistentVolumeClaim.create }}
+{{ include "bitbucket.volumes.localHome" . }}
+{{- end }}
+{{ include "bitbucket.volumes.sharedHome" . }}
+{{- with .Values.volumes.additional }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{- define "bitbucket.volumes.localHome" -}}
+{{- if not .Values.volumes.localHome.persistentVolumeClaim.create }}
+- name: local-home
+{{ if .Values.volumes.localHome.customVolume }}
+{{- toYaml .Values.volumes.localHome.customVolume | nindent 2 }}
+{{ else }}
+  emptyDir: {}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "bitbucket.volumes.sharedHome" -}}
+- name: shared-home
+{{- if .Values.volumes.sharedHome.persistentVolumeClaim.create }}
+  persistentVolumeClaim:
+    claimName: {{ include "bitbucket.fullname" . }}-shared-home
+{{ else }}
+{{ if .Values.volumes.sharedHome.customVolume }}
+{{- toYaml .Values.volumes.sharedHome.customVolume | nindent 2 }}
+{{ else }}
+  emptyDir: {}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "bitbucket.volumeClaimTemplates" -}}
+{{ if .Values.volumes.localHome.persistentVolumeClaim.create }}
+volumeClaimTemplates:
+- metadata:
+    name: local-home
+  spec:
+    accessModes: [ "ReadWriteOnce" ]
+    {{- if .Values.volumes.localHome.persistentVolumeClaim.storageClassName }}
+    storageClassName: {{ .Values.volumes.localHome.persistentVolumeClaim.storageClassName | quote }}
+    {{- end }}
+    {{- with .Values.volumes.localHome.persistentVolumeClaim.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "bitbucket.databaseEnvVars" -}}
+{{ with .Values.database.driver }}
+- name: JDBC_DRIVER
+  value: {{ . | quote }}
+{{ end }}
+{{ with .Values.database.url }}
+- name: JDBC_URL
+  value: {{ . | quote }}
+{{ end }}
+{{ with .Values.database.credentials.secretName }}
+- name: JDBC_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.credentials.usernameSecretKey }}
+- name: JDBC_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.credentials.passwordSecretKey }}
+{{ end }}
+{{ end }}
+
+{{- define "bitbucket.sysadminEnvVars" -}}
+{{ with .Values.bitbucket.sysadminCredentials }}
+{{ if .secretName }}
+- name: SETUP_SYSADMIN_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secretName }}
+      key: {{ .usernameSecretKey }}
+- name: SETUP_SYSADMIN_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secretName }}
+      key: {{ .passwordSecretKey }}
+- name: SETUP_SYSADMIN_DISPLAYNAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secretName }}
+      key: {{ .displayNameSecretKey }}
+- name: SETUP_SYSADMIN_EMAILADDRESS
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secretName }}
+      key: {{ .emailAddressSecretKey }}
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{- define "bitbucket.clusteringEnvVars" -}}
+{{ if .Values.bitbucket.clustering.enabled }}
+- name: KUBERNETES_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: HAZELCAST_KUBERNETES_SERVICE_NAME
+  value: {{ include "bitbucket.fullname" . | quote }}
+- name: HAZELCAST_NETWORK_KUBERNETES
+  value: "true"
+- name: HAZELCAST_PORT
+  value: {{ .Values.bitbucket.ports.hazelcast | quote }}
+{{ end }}
+{{ end }}

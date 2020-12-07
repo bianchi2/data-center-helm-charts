@@ -19,32 +19,10 @@ be operated in multi-node clusters.
 ## Kubernetes pre-configuration
 There are a few items that need to be pre-configured in your Kubernetes cluster, which the resources deployed 
 by the Helm charts will expect to be present.
-* Secrets
-   * [all products] there must be a Secret in the target namespace containing
-the username and password that the product should use to connect to the database. 
-   * [confluence and bitbucket] there must be a Secret in the target namespace 
-containing the license key for the product. Must be a valid Data Center license.
-   * [bitbucket] there must be a Secret in the namespace containing the sysadmin user
-credentials (username, password, display name and email address)
-   * these may all be combined into a single Secret, or can be separate. 
-   * The names of the secrets, and the value keys within those secrets, 
-   can be anything you like, but there are defaults in the charts' `values.yaml` 
-   files. These defaults can be used, otherwise the alternative names must be
-   specified during installation.   
-* Service account
-   * [confluence and bitbucket] a Kubernetes service account must be configured 
-   that should be used by the product. This account must have permission to query
-   the Kubernetes API to discover other Data Center cluster nodes. 
 * Volumes
-   * [all products] Each Data Center node requires a "local home" Persistent Volume 
-   with access mode `ReadWriteOnce`. These can be statically provisioned as required,
-   or a dynamic provisioner can be used.  
-   * [all products] All Data Center nodes in a given deployment must have access to
-   a "shared home" PersistentVolume. If there is only a single Data Center cluster node,
-   then `ReadWriteOnce` is sufficient access, but if there are to be multiple 
-   Data Center nodes, then `ReadWriteMany` is required.
-   * [all products] In addition to the shared-home PersistentVolume itself,
-   a shared-home PersistentVolumeClaim must also be created.
+   * While the Helm charts can be installed without providing any dedicated
+   storage, it is *strongly* recommended that Persistent Volumes are provisioned,
+   including a shared read-write volume. See the "Volumes" section below.
 * Ingress controller
    * Because different Kubernetes clusters use different Ingress configurations,
    the Helm charts will not install an Ingress resource. An ingress controller
@@ -62,8 +40,7 @@ credentials (username, password, display name and email address)
       * `<product>` can be any one of `jira`, `confluence` or `bitbucket`
       * `<chart-version>` can be omitted if you just wish the latest version of the chart
       * `values.yaml` contains your site-specific configuration information. 
-      This is mandatory, since there are several configuration values that have no defaults.
-      See "Configuration" below.
+      May be omitted, in which case the chart config default will be used.
       * Add `--wait` if you wish the installation command to block until all of the deployed 
       Kubernetes resources are ready, but be aware that this may be waiting for several minutes 
       if anything is mis-configured.   
@@ -89,32 +66,50 @@ examples can be used as a guide.
 At a minimum, the ingress needs to support the ability to support long request timeouts, as
 well as session affinity (aka "sticky sessions").
 
-## Chart values
-Each product's chart contains a large number of configurable options, most 
-of which are optional, but a few of which are mandatory. These values can all be specified 
-in your `values.yaml`, and which you pass to the `helm install` command.
+## Service accounts
+By default, the Helm charts will create a `ServiceAccount`. This can be configured with
+`imagePullSecrets` if required. For Bitbucket and Confluence, which require access
+to the Kubernetes API for Data Center peer discovery to work, the charts will also 
+create a `ClusterRole`, and a `ClusterRoleBinding` for the `Serviceccount`.
 
-The mandatory values are one for which there no sensible defaults, and
-must be provided by the installer:
+The creation `ServiceAccount`, `ClusterRole` and `ClusterRoleBinding` can all be disabled
+if required, but Confluence and Bitbuket still require a `ServiceAccount` with Kubernetes
+API access, so either the namespace's default `ServiceAccount` must have the required
+permissions, or the name of the pre-existing `ServiceAccount` must be specified.
 
-* [all products] `database.url` is the JDBC URL of the database that should be used by the product.
-   * JDBC URLs vary depending on the JDBC driver and database being used, but for
-   postgres an example would be `jdbc:postgresql://host:port/database`
-* [jira and bitbucket] `database.driver` is the Java class name of the JDBC driver to be used
-   * The JDBC driver must already be present in the product's installation
-* [jira and confluence] `database.type` should be one of the valid values as listed in the chart's README
-* [bitbucket] `bitbucket.proxy.fqdn` should be the FQDN of the Bitbucket URL
+## Volumes
+The Data Center products make use of filesystem storage. Each DC node has its own "local-home" volume, and all
+nodes in the DC cluster share a single "shared-home" volume.
 
-Each chart's README file documents every configurable value. 
+By default, the Helm charts will configure all of these volumes as ephemeral "emptyDir" volumes. This makes it 
+possible to install the charts without configuring any volume management, but comes with two big caveats:
 
-See [CONFIG.md]() for examples of what can be done.
-    
+* Any data stored in the local-home or shared-home will be lost every time a pod starts. Whilst the data that is
+stored in local-home can generally be regenerated (e.g. from the database), this can be very a very expensive process
+that sometimes required manual intervention. 
+* The shared-home volume will not actually be shared between multiple nodes in the DC cluster. Whilst this may not 
+immediately prevent scaling the DC cluster up to multiple nodes, certain critical functionality of the products relies 
+on the shared filesystem working as expected.
+
+For these reasons, the default volume configuration of the Helm charts is suitable only for running a single DC node for
+evaluation porpoises. Proper volume management needs to be configured in order for the data to survive restarts, and for
+multi-node DC clusters to operate correctly.
+
+While you are free to configure your Kubernetes volume management in any way you wish, within the constraints imposed by
+the products, the recommended setup is to use Kubernetes PersistentVolumes and PersistentVolumeClaims. The `local-home`
+volume requires a PersistentVolume with `ReadWriteOnce (RWO)` capability, and `shared-home` requires a PV with `ReadWriteMany (RWX)`
+capability. Typically, this will be a NFS volume provided as part of your infrastructure, but some public-cloud Kubernetes
+engines provide their own RWX volumes (e.g. AzureFile, ElasticFileStore). While this entails a higher up-front setup effort, 
+it gives the best flexibility.
+
+See [CONFIG.md]() for examples of how to configure the volumes.
+
 # Scaling up Data Center
 
 By default, the Helm charts will provision a `StatefulSet` with 1 `replicaCount` of 1.
 The `replicaCount` can be altered at runtime to provision a multi-node 
 Data Center cluster, with no further configuration required (although note
-that the Ingress must support cookie-based sessin affinity in order for the 
+that the Ingress must support cookie-based session affinity in order for the 
 products to work correctly in a multi-node configuration).
 
 It is important to note, however, that both Jira and Confluence must initially

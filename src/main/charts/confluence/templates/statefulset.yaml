@@ -19,9 +19,7 @@ spec:
       labels:
         {{- include "confluence.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.serviceAccountName }}
-      serviceAccountName: {{ .Values.serviceAccountName }}
-      {{- end }}
+      serviceAccountName: {{ include "confluence.serviceAccountName" . }}
       terminationGracePeriodSeconds: 1
       securityContext:
         # This is intended to ensure that the shared-home volume is group-writeable by the GID used by the Cnfluence container.
@@ -71,16 +69,6 @@ spec:
               value: https
             - name: ATL_TOMCAT_SECURE
               value: "true"
-            - name: KUBERNETES_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: HAZELCAST_KUBERNETES_SERVICE_NAME
-              value: {{ include "confluence.fullname" . | quote }}
-            - name: ATL_CLUSTER_TYPE
-              value: "kubernetes"
-            - name: ATL_CLUSTER_NAME
-              value: {{ include "confluence.name" . | quote }}
             - name: ATL_PRODUCT_HOME_SHARED
               value: {{ .Values.volumes.sharedHome.mountPath | quote }}
             - name: JVM_SUPPORT_RECOMMENDED_ARGS
@@ -88,25 +76,15 @@ spec:
                 configMapKeyRef:
                   key: additional_jvm_args
                   name: {{ include "confluence.fullname" . }}-jvm-config
-            - name: ATL_JDBC_URL
-              value: {{ .Values.database.url | quote }}
-            - name: ATL_JDBC_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.credentials.secretName }}
-                  key: {{ .Values.database.credentials.usernameSecretKey }}
-            - name: ATL_JDBC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.credentials.secretName }}
-                  key: {{ .Values.database.credentials.passwordSecretKey }}
-            - name: ATL_DB_TYPE
-              value: {{ .Values.database.type | quote }}
+            {{- include "confluence.clusteringEnvVars" . | nindent 12 }}
+            {{- include "confluence.databaseEnvVars" . | nindent 12 }}
+            {{ with .Values.confluence.license.secretName }}
             - name: ATL_LICENSE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.confluence.license.secretName }}
-                  key: {{ .Values.confluence.license.secretKey }}
+                  name: {{ . }}
+                  key: {{ $.Values.confluence.license.secretKey }}
+            {{ end }}
             - name: JVM_MINIMUM_MEMORY
               valueFrom:
                 configMapKeyRef:
@@ -141,21 +119,5 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        - name: shared-home
-          persistentVolumeClaim:
-            claimName: {{ .Values.volumes.sharedHome.volumeClaimName }}
-        {{- with .Values.volumes.additional }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-  volumeClaimTemplates:
-    - metadata:
-        name: local-home
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        {{- if .Values.volumes.localHome.storageClassName }}
-        storageClassName: {{ .Values.volumes.localHome.storageClassName | quote }}
-        {{- end }}
-        {{- with .Values.volumes.localHome.resources }}
-        resources:
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
+        {{ include "confluence.volumes" . | nindent 8 }}
+  {{ include "confluence.volumeClaimTemplates" . | nindent 2 }}

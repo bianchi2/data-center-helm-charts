@@ -10,6 +10,7 @@ source $1
 RELEASE_PREFIX=$(echo "${RELEASE_PREFIX}" | tr '[:upper:]' '[:lower:]')
 PRODUCT_RELEASE_NAME=$RELEASE_PREFIX-$PRODUCT_NAME
 POSTGRES_RELEASE_NAME=$PRODUCT_RELEASE_NAME-pgsql
+FUNCTEST_RELEASE_NAME=$PRODUCT_RELEASE_NAME-functest
 
 HELM_PACKAGE_DIR=target/helm
 
@@ -25,6 +26,7 @@ clusterType=$(case "${currentContext}" in
   *) echo CUSTOM;;
 esac)
 
+echo "Cluster type is $clusterType"
 
 # Install the bitnami postgresql Helm chart
 helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
@@ -39,15 +41,25 @@ helm install -n "${TARGET_NAMESPACE}" --wait \
    --values "$THISDIR/postgres-values.yaml" \
    --set fullnameOverride="$POSTGRES_RELEASE_NAME" \
    --set image.tag="$POSTGRES_APP_VERSION" \
-   --set postgresqlDatabase="$PRODUCT_NAME" \
+   --set postgresqlDatabase="$DB_NAME" \
    --set postgresqlUsername="$PRODUCT_NAME" \
    --set postgresqlPassword="$PRODUCT_NAME" \
    --version "$POSTGRES_CHART_VERSION" \
    bitnami/postgresql > $LOG_DOWNLOAD_DIR/helm_install_log.txt
+ 
+if [ -n "$DB_INIT_SCRIPT_FILE" ]
+then
+  kubectl cp $DB_INIT_SCRIPT_FILE $TARGET_NAMESPACE/$POSTGRES_RELEASE_NAME-0:/tmp/db-init-script.sql
+  kubectl exec ${POSTGRES_RELEASE_NAME}-0 -- /bin/bash -c "psql postgresql://$PRODUCT_NAME:$PRODUCT_NAME@localhost:5432/$DB_NAME -f /tmp/db-init-script.sql"
+fi
 
-for file in ${PRODUCT_CHART_VALUES_FILES}.yaml ${PRODUCT_CHART_VALUES_FILES}-${clusterType}.yaml ; do
+CHART_TEST_VALUES_DIR=$CHART_TEST_VALUES_BASEDIR/$PRODUCT_NAME
+
+for file in ${CHART_TEST_VALUES_DIR}/values.yaml ${CHART_TEST_VALUES_DIR}/values-${clusterType}.yaml ; do
   [ -f "$file" ] && valueOverrides+="--values $file "
 done
+
+test "$PERSISTENT_VOLUMES" = true && valueOverrides+="--set persistence.enabled=true "
 
 [ -n "$DOCKER_IMAGE_REGISTRY" ] && valueOverrides+="--set image.registry=$DOCKER_IMAGE_REGISTRY "
 [ -n "$DOCKER_IMAGE_VERSION" ] && valueOverrides+="--set image.tag=$DOCKER_IMAGE_VERSION "
@@ -79,9 +91,57 @@ then
 fi
 
 # Run the chart's tests
-helm test "$PRODUCT_RELEASE_NAME" --logs -n "${TARGET_NAMESPACE}"
+helm test "$PRODUCT_RELEASE_NAME" -n "${TARGET_NAMESPACE}"
 
-# Install an ingress route to allow access to Bitbucket from outside the k8s cluster
-HELM_RELEASE_NAME=${PRODUCT_RELEASE_NAME} envsubst < "${PRODUCT_INGRESS_TEMPLATE}-${clusterType}.yaml" >$LOG_DOWNLOAD_DIR/ingress.yaml
+# Package and install the functest helm chart
+INGRESS_DOMAIN_VARIABLE_NAME="INGRESS_DOMAIN_$clusterType"
+INGRESS_DOMAIN=${!INGRESS_DOMAIN_VARIABLE_NAME}
+FUNCTEST_CHART_PATH="$THISDIR/../charts/functest"
+FUNCTEST_CHART_VALUES=clusterType=$clusterType,ingressDomain=$INGRESS_DOMAIN,productReleaseName=$PRODUCT_RELEASE_NAME,product=$PRODUCT_NAME
 
-kubectl apply -n "${TARGET_NAMESPACE}" --filename $LOG_DOWNLOAD_DIR/ingress.yaml
+## build values file for expose node services and ingresses
+## to create routes to individual nodes; disabled if TARGET_REPLICA_COUNT is undef 
+NEWLINE=$'\n'
+backdoorServices="backdoorServiceNames:${NEWLINE}"
+ingressServices="ingressNames:${NEWLINE}"
+ingressServices+="- ${PRODUCT_RELEASE_NAME}${NEWLINE}"
+for ((NODE = 0; NODE < ${TARGET_REPLICA_COUNT:-0}; NODE += 1)) 
+do 
+  backdoorServices+="- ${PRODUCT_RELEASE_NAME}-${NODE}${NEWLINE}"
+  ingressServices+="- ${PRODUCT_RELEASE_NAME}-${NODE}${NEWLINE}"
+done
+EXPOSE_NODES_FILE="${LOG_DOWNLOAD_DIR}/${PRODUCT_RELEASE_NAME}-service-expose.yaml"
+
+echo "${backdoorServices}${ingressServices}" > ${EXPOSE_NODES_FILE}
+
+helm template \
+   "$FUNCTEST_RELEASE_NAME" \
+   "$FUNCTEST_CHART_PATH" \
+   --set "$FUNCTEST_CHART_VALUES" \
+   --values ${EXPOSE_NODES_FILE} \
+   > "$LOG_DOWNLOAD_DIR/$FUNCTEST_RELEASE_NAME.yaml"
+
+helm package "$FUNCTEST_CHART_PATH" --destination "$HELM_PACKAGE_DIR"
+
+helm install --wait \
+   -n "${TARGET_NAMESPACE}" \
+   "$FUNCTEST_RELEASE_NAME" \
+   --set "$FUNCTEST_CHART_VALUES" \
+   --values ${EXPOSE_NODES_FILE} \
+   "$HELM_PACKAGE_DIR/functest-0.1.0.tgz"
+
+# wait until the Ingress we just created starts serving up non-error responses - there may be a lag
+INGRESS_URI="https://${PRODUCT_RELEASE_NAME}.${INGRESS_DOMAIN}/"
+echo "Waiting for $INGRESS_URI to be ready"
+for (( i=0; i<10; ++i ));
+do
+   STATUS_CODE=$(curl -s -o /dev/null -w %{http_code} "$INGRESS_URI")
+   echo "Received status code $STATUS_CODE from $INGRESS_URI"
+   if [ "$STATUS_CODE" -lt 400 ]; then
+     echo "Ingress is ready"
+     break
+   else
+     echo "Ingress is not yet ready"
+     sleep 3
+   fi
+done

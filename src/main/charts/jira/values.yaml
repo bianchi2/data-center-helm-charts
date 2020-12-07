@@ -9,20 +9,32 @@ image:
   # -- The docker image tag to be used. Defaults to the Chart appVersion.
   tag: ""
 
-# -- Specifies which serviceAccount to use for the pods. If not specified, the kubernetes default will be used.
-serviceAccountName:
+serviceAccount:
+  # -- Specifies the name of the ServiceAccount to be used by the pods.
+  # If not specified, but the the "serviceAccount.create" flag is set, then the ServiceAccount name will be auto-generated,
+  # otherwise the 'default' ServiceAccount will be used.
+  name:
+  # -- true if a ServiceAccount should be created, or false if it already exists
+  create: true
+  # -- The list of image pull secrets that should be added to the created ServiceAccount
+  imagePullSecrets: []
 
 database:
   # -- The type of database being used.
   # Valid values include 'postgres72', 'mysql57', 'mysql8', 'oracle10g', 'mssql', 'postgresaurora96'
+  # If not specified, then it will need to be provided via browser during initial startup.
   type:
   # -- The JDBC URL of the database to be used by Jira, e.g. jdbc:postgresql://host:port/database
+  # If not specified, then it will need to be provided via browser during initial startup.
   url:
   # -- The Java class name of the JDBC driver to be used, e.g. org.postgresql.Driver
+  # If not specified, then it will need to be provided via browser during initial startup.
   driver:
   credentials:
     # -- The name of the Kubernetes Secret that contains the database login credentials.
-    secretName: jira-database-credentials
+    # If specified, then the credentials will be automatically populated during Jira setup.
+    # Otherwise, they will need to be provided via the browser after initial startup.
+    secretName:
     # -- The key in the Secret used to store the database login username
     usernameSecretKey: username
     # -- The key in the Secret used to store the database login password
@@ -47,6 +59,12 @@ jira:
     periodSeconds: 5
     # -- The number of consecutive failures of the Jira container readiness probe before the pod fails readiness checks
     failureThreshold: 30
+
+  clustering:
+    # -- Set to true if Data Center clustering should be enabled
+    # This will automatically configure cluster peer discovery between cluster nodes.
+    enabled: false
+
   resources:
     jvm:
       # -- The maximum amount of heap memory that will be used by the Jira JVM
@@ -103,25 +121,41 @@ podAnnotations: {}
 
 volumes:
   localHome:
-    # -- Specifies the name of the storage class that should be used for the Jira local-home volume
-    storageClassName:
-    # -- Specifies the standard Kubernetes resource requests and/or limits for the Jira local-home volume.
-    resources:
-      requests:
-        storage: 1Gi
+    persistentVolumeClaim:
+      # -- If true, then a PersistentVolumeClaim will be created for each local-home volume.
+      create: false
+      # -- Specifies the name of the storage class that should be used for the local-home volume claim.
+      storageClassName:
+      # -- Specifies the standard Kubernetes resource requests and/or limits for the local-home volume claims.
+      resources:
+        requests:
+          storage: 1Gi
+    # -- When persistentVolumeClaim.create is false, then this value can be used to define a standard Kubernetes
+    # volume which will be used for the local-home volumes. If not defined, then defaults to an emptyDir volume.
+    customVolume:
     # -- Specifies the path in the Jira container to which the local-home volume will be mounted.
     mountPath: "/var/atlassian/application-data/jira"
   sharedHome:
+    persistentVolumeClaim:
+      # -- If true, then a PersistentVolumeClaim will be created for the shared-home volume.
+      create: false
+      # -- Specifies the name of the storage class that should be used for the shared-home volume claim.
+      storageClassName:
+      # -- Specifies the standard Kubernetes resource requests and/or limits for the shared-home volume claims.
+      resources:
+        requests:
+          storage: 1Gi
+    # -- When persistentVolumeClaim.create is false, then this value can be used to define a standard Kubernetes
+    # volume which will be used for the shared-home volume. If not defined, then defaults to an emptyDir (i.e. unshared) volume.
+    customVolume:
     # -- Specifies the path in the Jira container to which the shared-home volume will be mounted.
     mountPath: "/var/atlassian/application-data/shared-home"
     # -- Specifies the sub-directory of the shared-home volume which will be mounted in to the Jira container.
     subPath:
-    # -- The name of the PersistentVolumeClaim which will be used for the shared-home volume
-    volumeClaimName: jira-shared-home
     nfsPermissionFixer:
       # -- If enabled, this will alter the shared-home volume's root directory so that Jira can write to it.
       # This is a workaround for a Kubernetes bug affecting NFS volumes: https://github.com/kubernetes/examples/issues/260
-      enabled: true
+      enabled: false
       # -- The path in the initContainer where the shared-home volume will be mounted
       mountPath: /shared-home
       # -- By default, the fixer will change the group ownership of the volume's root directory to match the Jira

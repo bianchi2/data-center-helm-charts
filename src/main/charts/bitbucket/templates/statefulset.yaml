@@ -20,9 +20,7 @@ spec:
       labels:
         {{- include "bitbucket.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.serviceAccountName }}
-      serviceAccountName: {{ .Values.serviceAccountName }}
-      {{- end }}
+      serviceAccountName: {{ include "bitbucket.serviceAccountName" . }}
       terminationGracePeriodSeconds: 1
       securityContext:
         # This is intended to ensure that the shared-home volume is group-writeable by the GID used by the Bitbucket container.
@@ -71,32 +69,15 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
-            - name: KUBERNETES_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: HAZELCAST_KUBERNETES_SERVICE_NAME
-              value: {{ include "bitbucket.fullname" . | quote }}
-            - name: HAZELCAST_NETWORK_KUBERNETES
-              value: "true"
-            - name: HAZELCAST_PORT
-              value: {{ .Values.bitbucket.ports.hazelcast | quote }}
-            - name: JDBC_DRIVER
-              value: {{ .Values.database.driver | quote }}
-            - name: JDBC_URL
-              value: {{ .Values.database.url | quote }}
-            - name: JDBC_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.credentials.secretName }}
-                  key: {{ .Values.database.credentials.usernameSecretKey }}
-            - name: JDBC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.credentials.secretName }}
-                  key: {{ .Values.database.credentials.passwordSecretKey }}
+            {{- include "bitbucket.clusteringEnvVars" . | nindent 12 }}
+            {{- include "bitbucket.databaseEnvVars" . | nindent 12 }}
+            {{- include "bitbucket.sysadminEnvVars" . | nindent 12 }}
+            {{ if .Values.bitbucket.proxy.fqdn }}
             - name: SERVER_PROXY_NAME
               value: {{ .Values.bitbucket.proxy.fqdn | quote }}
+            - name: SETUP_BASEURL
+              value: {{ include "bitbucket.baseUrl" . | quote }}
+            {{ end }}
             - name: SERVER_PROXY_PORT
               value: {{ .Values.bitbucket.proxy.port | quote }}
             - name: SERVER_SCHEME
@@ -105,33 +86,13 @@ spec:
               value: {{ .Values.bitbucket.proxy.secure | quote }}
             - name: BITBUCKET_SHARED_HOME
               value: {{ .Values.volumes.sharedHome.mountPath | quote }}
+            {{ with .Values.bitbucket.license.secretName }}
             - name: SETUP_LICENSE
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.bitbucket.license.secretName }}
-                  key: {{ .Values.bitbucket.license.secretKey }}
-            - name: SETUP_BASEURL
-              value: {{ include "bitbucket.baseUrl" . | quote }}
-            - name: SETUP_SYSADMIN_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.bitbucket.sysadminCredentials.secretName }}
-                  key: {{ .Values.bitbucket.sysadminCredentials.usernameSecretKey }}
-            - name: SETUP_SYSADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.bitbucket.sysadminCredentials.secretName }}
-                  key: {{ .Values.bitbucket.sysadminCredentials.passwordSecretKey }}
-            - name: SETUP_SYSADMIN_DISPLAYNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.bitbucket.sysadminCredentials.secretName }}
-                  key: {{ .Values.bitbucket.sysadminCredentials.displayNameSecretKey }}
-            - name: SETUP_SYSADMIN_EMAILADDRESS
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.bitbucket.sysadminCredentials.secretName }}
-                  key: {{ .Values.bitbucket.sysadminCredentials.emailAddressSecretKey }}
+                  name: {{ . }}
+                  key: {{ $.Values.bitbucket.license.secretKey }}
+            {{ end }}
             - name: JVM_MINIMUM_MEMORY
               valueFrom:
                 configMapKeyRef:
@@ -166,21 +127,5 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        - name: shared-home
-          persistentVolumeClaim:
-            claimName: {{ .Values.volumes.sharedHome.volumeClaimName }}
-        {{- with .Values.volumes.additional }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-  volumeClaimTemplates:
-    - metadata:
-        name: local-home
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        {{- if .Values.volumes.localHome.storageClassName }}
-        storageClassName: {{ .Values.volumes.localHome.storageClassName | quote }}
-        {{- end }}
-        {{- with .Values.volumes.localHome.resources }}
-        resources:
-        {{- toYaml . | nindent 10 }}
-        {{- end }}
+        {{ include "bitbucket.volumes" . | nindent 8 }}
+  {{ include "bitbucket.volumeClaimTemplates" . | nindent 2 }}

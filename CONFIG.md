@@ -3,17 +3,60 @@
 The Helm charts are not opinionated as to whether they have a Kubernetes namespace to themselves. 
 If you wish, you can run multiple Helm releases of the same product in the same namespace.
 
-## Service account
+## Volumes
 
-Like any other Kubernetes application, the pods in the Data Center product deployments
-use a Kubernetes service account. Unless otherwise configured, this will use the
-default service account for the namespace.
+By default, the charts will configure the `local-home` and `shared-home` volues as follows:
 
-In order to use a different service account, override the chart value `serviceAccountName`.
+```yaml
+volumes:
+  - name: local-home
+    emptyDir: {}
+  - name: shared-home
+    emptyDir: {}
+```
 
-Note that for Jira, there are no special permissions required for this service account, but both Confluence and
-Bitbucket use Hazelcast for peer discovery, which entails querying the Kubernetes
-API. The account will need `get`/`list` permission for `endpoints`, `nodes` and `pods` for the current namespace.
+In order to enable the persistent of data stored in these volumes, it is necessary
+to replace these volumes with something else.
+
+The recommended way is to enable the use of PersistentVolume and PersistentVolumeClaim
+for both both volumes, using your install-specific `values.yaml` file, for example:
+
+```yaml
+volumes:
+  localHome:
+    persistentVolumeClaim:
+      create: true
+  shared-home:
+    persistentVolumeClaim:
+      create: true
+```
+
+This will result in each pod in the StatefulSet creating a `local-home` `PersistentVolumeClaim`
+of type `ReadWriteOnce`, and a single PVC of type `ReadWriteMany` being created for the shared-home.
+
+For each PVC created by the chart, a suitable `PersistentVolume` needs to be made available prior 
+to installation. These can be provisioned either statically or dynamically, using an 
+auto-provisioner.
+
+An alternative to PersistentVolumeClaims is to use inline volume definitions,
+either for `local-home` or `shared-home` (or both), for example:
+
+```yaml
+volumes:
+  localHome:
+    customVolume:
+      hostPath:
+        path: /path/to/my/data
+  shared-home:
+    customVolume:
+      nfs:
+        server: mynfsserver
+        path: /export/path
+````
+
+Generally, any valid Kubernetes volume resource definition can be substituted
+here. However, as mentioned previously, externalising the volume definitions
+using PersistentVolumes is the strongly recommended approach.
 
 ## Database connectivity
 
@@ -59,13 +102,24 @@ Jira and Confluence both require this value to be specified, which declares the
 
 ### Database credentials
 
-The products require that there is a Kubernetes Secret present in the namespace,
-that contains the username and password which the product should use to connect
-to the database.
+All products can have their database connectivity and credentials specified either
+interactively during first-time setup, or automatically by specifying certain configuration
+via Kubernetes.
 
-The default name for this secret, as well as the keys in the secret that contain
-the credentials, are defined in the charts' README, but they can all be changed 
-by overriding those settings.
+Depending on the product, the `database.type`, `database.url` and `database.driver` chart values
+can be provided. In addition, the database username and password can be provided via a Kubernetes secret,
+with the secret name specified with the `database.credentials.secretName` chart value. 
+When all of the required information is provided in this way, the database connectivity configuration screen
+will be bypassed during product setup. 
+
+## Clustering
+By default, the Helm charts are will not configure the products for Data Center clustering. 
+
+In order to enable clustering, the appropriate chart value must be set to `true` (`jira.clustering.enabled`, 
+`confluence.clustering.enabled` or `bitbucket.clustering.enabled`) 
+
+In addition, the `shared-home` volume must be correctly configured as a read-write shared filesystem (e.g. NFS,
+AWS EFS, Azure Files)
 
 ## Additional libraries & plugins
 

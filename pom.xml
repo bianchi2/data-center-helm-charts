@@ -31,11 +31,35 @@
             <version>${junit5.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>2.11.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vavr</groupId>
+            <artifactId>vavr</artifactId>
+            <version>0.10.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vavr</groupId>
+            <artifactId>vavr-jackson</artifactId>
+            <version>0.10.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-vavr</artifactId>
+            <version>0.3.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <junit5.version>5.7.0</junit5.version>
@@ -55,6 +79,13 @@
         <kubernetes.ingress.domain>internal.shared-dev.us-west-2.kitt-inf.net</kubernetes.ingress.domain>
         <kitt.ingress.domain>${kubernetes.ingress.domain}</kitt.ingress.domain>
         <eks.ingress.domain>dcngkube.bbsperf.com</eks.ingress.domain>
+
+        <persistence.enabled>true</persistence.enabled>
+
+        <db.init.script.file/>
+
+        <!-- The directory in which the helm (un)install script should look for the chart values files for integration testing -->
+        <chart.testValues.basedir>${project.build.directory}/config</chart.testValues.basedir>
     </properties>
 
     <build>
@@ -84,6 +115,17 @@
             <properties>
                 <dockerImage.registry>docker.atl-paas.net</dockerImage.registry>
                 <dockerImage.version>${user.name}</dockerImage.version>
+            </properties>
+        </profile>
+
+        <profile>
+            <id>default-chart-values</id>
+            <!--
+            Activating this profile will cause the helm_install.sh script to *not* find the integration-test values.yaml
+            files, resulting in the Helm chart being installed with the default values.
+            -->
+            <properties>
+                <chart.testValues.basedir>dummy</chart.testValues.basedir>
             </properties>
         </profile>
     </profiles>

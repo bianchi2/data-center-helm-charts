@@ -1,15 +1,18 @@
+{{ if .Values.database.credentials.secretName }}
 apiVersion: v1
 kind: Pod
 metadata:
   name: "{{ include "bitbucket.fullname" . }}-db-connectivity-test"
   annotations:
     "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
     {{- with .Values.podAnnotations }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
   labels:
     {{- include "bitbucket.labels" . | nindent 4 }}
 spec:
+  serviceAccountName: {{ include "bitbucket.serviceAccountName" . }}
   containers:
     - name: test
       image: {{ include "bitbucket.image" . | quote }}
@@ -52,3 +55,4 @@ spec:
           cat output.txt
           grep -q "Connection established OK" output.txt
   restartPolicy: Never
+{{ end }}

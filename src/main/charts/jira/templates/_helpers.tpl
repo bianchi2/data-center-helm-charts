@@ -34,6 +34,24 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+The name of the service account to be used.
+If the name is defined in the chart values, then use that,
+else if we're creating a new service account then use the name of the Helm release,
+else just use the "default" service account.
+*/}}
+{{- define "jira.serviceAccountName" -}}
+{{- if .Values.serviceAccount.name -}}
+{{- .Values.serviceAccount.name -}}
+{{- else -}}
+{{- if .Values.serviceAccount.create -}}
+{{- include "jira.fullname" . -}}
+{{- else -}}
+default
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "jira.labels" -}}
@@ -104,3 +122,97 @@ For each additional plugin declared, generate a volume mount that injects that l
   {{- end }}
 {{- end }}
 {{- end }}
+
+{{- define "jira.volumes" -}}
+{{ if not .Values.volumes.localHome.persistentVolumeClaim.create }}
+{{ include "jira.volumes.localHome" . }}
+{{- end }}
+{{ include "jira.volumes.sharedHome" . }}
+{{- with .Values.volumes.additional }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{- define "jira.volumes.localHome" -}}
+{{- if not .Values.volumes.localHome.persistentVolumeClaim.create }}
+- name: local-home
+{{ if .Values.volumes.localHome.customVolume }}
+{{- toYaml .Values.volumes.localHome.customVolume | nindent 2 }}
+{{ else }}
+  emptyDir: {}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "jira.volumes.sharedHome" -}}
+- name: shared-home
+{{- if .Values.volumes.sharedHome.persistentVolumeClaim.create }}
+  persistentVolumeClaim:
+    claimName: {{ include "jira.fullname" . }}-shared-home
+{{ else }}
+{{ if .Values.volumes.sharedHome.customVolume }}
+{{- toYaml .Values.volumes.sharedHome.customVolume | nindent 2 }}
+{{ else }}
+  emptyDir: {}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "jira.volumeClaimTemplates" -}}
+{{ if .Values.volumes.localHome.persistentVolumeClaim.create }}
+volumeClaimTemplates:
+- metadata:
+    name: local-home
+  spec:
+    accessModes: [ "ReadWriteOnce" ]
+    {{- if .Values.volumes.localHome.persistentVolumeClaim.storageClassName }}
+    storageClassName: {{ .Values.volumes.localHome.persistentVolumeClaim.storageClassName | quote }}
+    {{- end }}
+    {{- with .Values.volumes.localHome.persistentVolumeClaim.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "jira.databaseEnvVars" -}}
+{{ with .Values.database.type }}
+- name: ATL_DB_TYPE
+  value: {{ . | quote }}
+{{ end }}
+{{ with .Values.database.driver }}
+- name: ATL_DB_DRIVER
+  value: {{ . | quote }}
+{{ end }}
+{{ with .Values.database.url }}
+- name: ATL_JDBC_URL
+  value: {{ . | quote }}
+{{ end }}
+{{ with .Values.database.credentials.secretName }}
+- name: ATL_JDBC_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.credentials.usernameSecretKey }}
+- name: ATL_JDBC_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.credentials.passwordSecretKey }}
+{{ end }}
+{{ end }}
+
+{{- define "jira.clusteringEnvVars" -}}
+{{ if .Values.jira.clustering.enabled }}
+- name: CLUSTERED
+  value: "true"
+- name: JIRA_NODE_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: EHCACHE_LISTENER_HOSTNAME
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+{{ end }}
+{{ end }}

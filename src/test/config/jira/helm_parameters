@@ -1,7 +1,6 @@
 RELEASE_PREFIX=${helm.release.prefix}
 CHART_SRC_PATH=${helm.src.path}/jira
-PRODUCT_CHART_VALUES_FILES=${project.build.directory}/config/jira/values
-PRODUCT_INGRESS_TEMPLATE=${project.build.directory}/config/jira/ingress
+CHART_TEST_VALUES_BASEDIR=${chart.testValues.basedir}
 PRODUCT_NAME=jira
 DB_NAME=jira
 POSTGRES_CHART_VERSION=9.4.1
@@ -10,3 +9,8 @@ LOG_DOWNLOAD_DIR=${project.build.directory}/logs
 TARGET_NAMESPACE=${kubernetes.target.namespace}
 DOCKER_IMAGE_REGISTRY=${dockerImage.registry}
 DOCKER_IMAGE_VERSION=${dockerImage.version}
+INGRESS_DOMAIN_KITT=${kitt.ingress.domain}
+INGRESS_DOMAIN_EKS=${eks.ingress.domain}
+# .Values.replicaCount=1, but in here we specify how many nodes we are planning to get to prepare ingress rules for each
+TARGET_REPLICA_COUNT=2
+DB_INIT_SCRIPT_FILE=${db.init.script.file}

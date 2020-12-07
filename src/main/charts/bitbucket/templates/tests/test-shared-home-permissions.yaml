@@ -4,6 +4,7 @@ metadata:
   name: "{{ include "bitbucket.fullname" . }}-shared-home-permissions-test"
   annotations:
     "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
     {{- with .Values.podAnnotations }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -34,7 +35,5 @@ spec:
           ls -l /shared-home/permissions-test
           rm /shared-home/permissions-test
   volumes:
-    - name: shared-home
-      persistentVolumeClaim:
-        claimName: {{ .Values.volumes.sharedHome.volumeClaimName }}
+    {{ include "bitbucket.volumes.sharedHome" . | nindent 4 }}
   restartPolicy: Never
