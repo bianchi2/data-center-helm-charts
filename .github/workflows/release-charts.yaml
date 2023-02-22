@@ -37,7 +37,6 @@ jobs:
 
       - name: Generate Release Notes for GitHub Releases
         run: |
-          git checkout ${GITHUB_REF_NAME}
           cd src/main/scripts
           ./release_notes_generator.sh ${GITHUB_WORKSPACE}
 
@@ -60,5 +59,7 @@ jobs:
 
       - name: Commit and push index.yaml
         run: |
+          git checkout -b update-index-yaml-${GITHUB_RUN_ID}
           git commit -m "Update index.yaml post release"
-          git push origin ${GITHUB_REF_NAME}
+          git push origin update-index-yaml-${GITHUB_RUN_ID}
+          gh pr create --title "Update index.yaml" --body "Update index.yaml after release" --base main --head update-index-yaml-${GITHUB_RUN_ID}
