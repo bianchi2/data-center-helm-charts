@@ -1,5 +1,32 @@
 # Change Log
 
+## 1.10.33
+
+**Release date:** 2023-3-5
+
+![AppVersion: 9.4.3](https://img.shields.io/static/v1?label=AppVersion&message=9.4.3&color=success&logo=)
+![Kubernetes: >=1.21.x-0](https://img.shields.io/static/v1?label=Kubernetes&message=>=1.21.x-0&color=informational&logo=kubernetes)
+![Helm: v3](https://img.shields.io/static/v1?label=Helm&message=v3&color=informational&logo=helm)
+
+* Prepare release 20.17.4.7
+* Update appVersion in DC apps
+* CLIP-1234: Update jira statefulset to enhance flexibility
+* Prepare release 16.11.13.19
+* CLIP-1234: Update jira documentation to implement a new feature
+* Prepare release 7.20.18.12
+* CLIP-1234: Remove jira values for better maintainability
+* Prepare release 2.4.4.14
+* CLIP-1234: Refactor jira tests to improve performance
+* Prepare release 2.10.20.7
+* Add jira statefulset to enhance flexibility
+* Prepare release 7.6.18.20
+* Rework jira statefulset to optimize memory usage
+* Prepare release 19.16.5.7
+* Fix jira tests to fix a bug
+* Prepare release 20.10.17.11
+* Remove jira chart to remove deprecated code
+* Prepare release 1.10.32
+
 ## 1.10.32
 
 **Release date:** 2023-3-4

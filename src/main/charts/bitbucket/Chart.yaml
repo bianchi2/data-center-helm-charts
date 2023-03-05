@@ -2,7 +2,7 @@ apiVersion: v2
 name: bitbucket
 description: A chart for installing Bitbucket Data Center on Kubernetes
 type: application
-version: 1.10.32
+version: 1.10.33
 appVersion: 7.21.11
 kubeVersion: ">=1.21.x-0"
 keywords:
@@ -20,7 +20,24 @@ deprecated: false
 annotations:
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/changes: |-
-    - "Update Helm chart version"
+    - "Prepare release 7.14.4.13"
+    - "Update appVersion in DC apps"
+    - "CLIP-1234: Move bitbucket chart to enhance flexibility"
+    - "Prepare release 10.14.20.14"
+    - "CLIP-1234: Move bitbucket documentation to implement a new feature"
+    - "Prepare release 7.14.16.3"
+    - "CLIP-1234: Remove bitbucket helmfile for better maintainability"
+    - "Prepare release 2.16.8.15"
+    - "CLIP-1234: Fix bitbucket statefulset to update dependencies"
+    - "Prepare release 8.2.13.12"
+    - "Refactor bitbucket statefulset for better readability"
+    - "Prepare release 4.3.8.7"
+    - "Rework bitbucket templates for better maintainability"
+    - "Prepare release 6.16.8.18"
+    - "Update bitbucket documentation to optimize memory usage"
+    - "Prepare release 2.17.15.20"
+    - "Add bitbucket tests for better maintainability"
+    - "Prepare release 1.10.32"
 
 dependencies:
 - name: common

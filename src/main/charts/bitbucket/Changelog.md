@@ -1,5 +1,32 @@
 # Change Log
 
+## 1.10.33
+
+**Release date:** 2023-3-5
+
+![AppVersion: 7.21.11](https://img.shields.io/static/v1?label=AppVersion&message=7.21.11&color=success&logo=)
+![Kubernetes: >=1.21.x-0](https://img.shields.io/static/v1?label=Kubernetes&message=>=1.21.x-0&color=informational&logo=kubernetes)
+![Helm: v3](https://img.shields.io/static/v1?label=Helm&message=v3&color=informational&logo=helm)
+
+* Prepare release 7.14.4.13
+* Update appVersion in DC apps
+* CLIP-1234: Move bitbucket chart to enhance flexibility
+* Prepare release 10.14.20.14
+* CLIP-1234: Move bitbucket documentation to implement a new feature
+* Prepare release 7.14.16.3
+* CLIP-1234: Remove bitbucket helmfile for better maintainability
+* Prepare release 2.16.8.15
+* CLIP-1234: Fix bitbucket statefulset to update dependencies
+* Prepare release 8.2.13.12
+* Refactor bitbucket statefulset for better readability
+* Prepare release 4.3.8.7
+* Rework bitbucket templates for better maintainability
+* Prepare release 6.16.8.18
+* Update bitbucket documentation to optimize memory usage
+* Prepare release 2.17.15.20
+* Add bitbucket tests for better maintainability
+* Prepare release 1.10.32
+
 ## 1.10.32
 
 **Release date:** 2023-3-4
