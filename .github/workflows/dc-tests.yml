@@ -1,12 +1,12 @@
 # This workflow is for testing Helm charts in KinD clusters
 
-name: DC apps tests in KinD
+name: Test Secrets
 
 on:
   workflow_dispatch:
   pull_request:
 
-obs:
+jobs:
   test:
     name: Test secrets availability
     runs-on: ubuntu-latest
