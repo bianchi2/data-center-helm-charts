@@ -4,17 +4,19 @@ name: Test Secrets
 
 on:
   workflow_dispatch:
-  pull_request:
+  pull_request_target:
+    types: [ labeled ]
 
 jobs:
   test:
+    if: ${{ github.event.label.name == 'kind' || github.event_name == 'workflow_dispatch' }}
     name: Test secrets availability
     runs-on: ubuntu-latest
     env:
       HELM_SIGNING_KEY_ID: ${{ secrets.HELM_SIGNING_KEY_ID }}
 
     steps:
-      - name: Checkout Helm charts
+      - name: Source code checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
