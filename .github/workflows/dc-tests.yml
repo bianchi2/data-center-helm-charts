@@ -24,7 +24,7 @@ jobs:
       - name: test terraform
         run: |
           # check existing version
-          terraform -verion
+          terraform -version
           
           # download the latest
           URL=$(curl -fsSL https://api.releases.hashicorp.com/v1/releases/terraform/latest | jq -r '.builds[] | select((.arch=="amd64") and (.os=="linux")).url')
