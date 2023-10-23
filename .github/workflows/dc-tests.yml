@@ -23,9 +23,17 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: test terraform
         run: |
-          terraform --version
-          which terraform
-          whereis terraform
+          # check existing version
+          terraform --verion
+          
+          # download the latest
+          URL=$(curl -fsSL https://api.releases.hashicorp.com/v1/releases/terraform/latest | jq -r '.builds[] | select((.arch=="amd64") and (.os=="linux")).url')
+          curl -o /tmp/terraform.zip ${URL}
+          unzip /tmp/terraform.zip -d /usr/local/bin/
+          rm /tmp/terraform.zip
+          
+          # check the latest version
+          terraform --verion
       - name: Test if secret is available
         run: |
           if [ -n "$HELM_SIGNING_KEY_ID" ]; then
