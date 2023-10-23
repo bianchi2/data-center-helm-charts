@@ -22,7 +22,10 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: test terraform
-        run: terraform --version
+        run: |
+          terraform --version
+          which terraform
+          whereis terraform
       - name: Test if secret is available
         run: |
           if [ -n "$HELM_SIGNING_KEY_ID" ]; then
